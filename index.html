@@ -245,9 +245,9 @@
     </style>
 </head>
 <body>
-<div class="container" id="app">
+<div class="container">
     <h1>📱 钢化膜编号 · 小熊系列</h1>
-    <div class="subhead">GX01 ~ GX98 · 高清膜 · 智能匹配</div>
+    <div class="subhead">GX01 ~ GX98 · 高清膜 · 精准匹配</div>
 
     <div id="autoTip" class="auto-tip">✅ 已自动识别手机型号，正在为您匹配...</div>
 
@@ -265,7 +265,7 @@
     </div>
 
     <div class="grid-wrapper">
-        <table id="dataTable">
+        <table>
             <thead>
                 <tr><th>编号</th><th>主型号</th><th>适用机型 (关键词)</th></tr>
             </thead>
@@ -279,7 +279,7 @@
         </div>
         <div class="qr-hint">📲 扫码自动匹配 · 支持 URL 参数 ?model=机型</div>
     </div>
-    <div class="footnote">数据源自「小熊系列高清膜」 · 模糊匹配自动定位</div>
+    <div class="footnote">数据源自「小熊系列高清膜」 · 精准匹配自动定位</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -287,7 +287,6 @@
 (function() {
     // --------------------------------------------------------------
     // 数据: 从Excel提取 (编号 + 适用机型)
-    // 每项: [编号, 适用机型]
     // --------------------------------------------------------------
     const rawData = [
       ["GX01", "华为：畅玩 40/畅享 50 Z/优畅享 50E/NZONE S7/畅享 30E/麦芒 11 SE/荣耀 Play 5T/畅玩 30E/畅玩 20/荣耀 Play 6C/畅玩 30M/畅享 50z/畅玩 30a/畅享 20/红米 9A/红米 12/红米 10X Pro/红米 10X /红米 9/麦芒 A20/荣耀 play20/小米 10Lite/红米 Note 11R/酷派 cool30/酷比锋尚 40 - OPPO：OPPO A1 活力版/真我 10S 5G/A8/A11/A11X/A56/A55S/A55 /A35/ 真我 V3/A57/真我 V11s/真我 V11/A58/A58m/A1x/真我 V23/真我 V20/真我 V10/A56s/A57 5G/A97/真我 10s/真我 C35/真我 Q5i/真我 C20/真我 NARZO 30/真我 NARZO20A /A53S(5G)/A77(5G)/iQOO Z7i/M 10/NZONE S7(5G)/ONEPlus/REAlMEV1 - vivo：VIVO Y77E/Y73t/iQOO Z6 X/VIVO Y74S/VIVO Y72T/Y53T/Y55S/iQOO U5X/Y35/Y16/iQOO U5E/iQOO U5X/Z6X/Y10/Y33S/T1X/iQOO U5/Y32/Y55s/Y26/Y11/vivc Y12A/Y15A/Y20/Y20i/Y33/Y33E/Y33T/vivo Y35+/vivo Y35m/vivo Y35m+/Y54s/Y55/Y72/Y76"],
@@ -382,50 +381,72 @@
     // 过滤空数据
     const data = rawData.filter(row => row[0] && row[0].startsWith('GX'));
 
-    // 构建索引: 提取所有关键词并映射到编号
-    function buildIndex(data) {
-        const idx = [];
-        data.forEach(([code, models]) => {
-            if (!models || models.trim() === '') return;
-            // 按 / 和 空格 分割关键词，并去除空白
-            const parts = models.split(/[\/\s]+/).filter(s => s.length > 1);
-            const cleanParts = parts.map(s => s.replace(/[，、：:；;，,。.、\-—\-—]/g, ' ').trim()).filter(s => s.length > 0);
-            // 去重
-            const unique = [...new Set(cleanParts)];
-            unique.forEach(key => {
-                if (key.length > 1) {
-                    idx.push({ key: key.toLowerCase(), code });
-                }
-            });
-        });
-        return idx;
+    // ---------- 精准匹配算法 ----------
+    function extractKeywords(models) {
+        if (!models || models.trim() === '') return [];
+        // 按 / 和 空格 分割，并清理
+        const parts = models.split(/[\/\s]+/).filter(s => s.length > 1);
+        return parts.map(s => s.replace(/[，、：:；;，,。.、\-—\-—]/g, ' ').trim()).filter(s => s.length > 0);
     }
 
-    const searchIndex = buildIndex(data);
+    // 构建索引：每个关键词关联到编号和原始机型
+    const searchIndex = [];
+    data.forEach(([code, models]) => {
+        if (!models || models.trim() === '') return;
+        const keys = extractKeywords(models);
+        const uniqueKeys = [...new Set(keys)];
+        uniqueKeys.forEach(key => {
+            if (key.length > 1) {
+                searchIndex.push({ 
+                    key: key.toLowerCase(), 
+                    code: code,
+                    original: models
+                });
+            }
+        });
+    });
 
-    // 模糊匹配函数
-    function fuzzySearch(query) {
+    // 排序：优先匹配长度更长的关键词 (更精准)
+    searchIndex.sort((a, b) => b.key.length - a.key.length);
+
+    function smartSearch(query) {
         if (!query || query.trim() === '') return null;
         const q = query.toLowerCase().trim();
-        // 先尝试精确包含
+
+        // 1. 精准匹配 (完整匹配)
         for (let item of searchIndex) {
-            if (item.key.includes(q) || q.includes(item.key)) {
-                return item.code;
+            if (item.key === q) {
+                return { code: item.code, matchedKey: item.key };
             }
         }
-        // 再尝试部分匹配 (按单词拆分)
-        const words = q.split(/[\s\/\-]+/).filter(w => w.length > 1);
+
+        // 2. 包含匹配 (按关键词长度降序)
+        for (let item of searchIndex) {
+            if (item.key.includes(q) && q.length >= 3) {
+                return { code: item.code, matchedKey: item.key };
+            }
+        }
+
+        // 3. 反向包含 (q 包含 key)
+        for (let item of searchIndex) {
+            if (q.includes(item.key) && item.key.length >= 3) {
+                return { code: item.code, matchedKey: item.key };
+            }
+        }
+
+        // 4. 拆分匹配 (按空格拆分后再匹配)
+        const words = q.split(/[\s\/\-]+/).filter(w => w.length > 2);
         for (let word of words) {
             for (let item of searchIndex) {
                 if (item.key.includes(word) || word.includes(item.key)) {
-                    return item.code;
+                    return { code: item.code, matchedKey: item.key };
                 }
             }
         }
+
         return null;
     }
 
-    // 获取完整行数据
     function getRowByCode(code) {
         return data.find(row => row[0] === code);
     }
@@ -440,12 +461,9 @@
             const td1 = document.createElement('td');
             td1.className = 'code-cell';
             td1.textContent = row[0];
-            // 主型号从原数据中取 (第3列, 但此处我们只展示编号+适用机型)
-            // 适用机型
             const td2 = document.createElement('td');
             td2.className = 'model-cell';
             td2.textContent = (row[1] || '').replace(/<br>/g, ' ').substring(0, 120) + (row[1] && row[1].length > 120 ? '…' : '');
-            // 添加一个空列保持布局
             const tdPlaceholder = document.createElement('td');
             tdPlaceholder.textContent = '—';
             tdPlaceholder.style.fontSize = '0.7rem';
@@ -473,24 +491,25 @@
             autoTip.style.display = 'none';
             return;
         }
-        const code = fuzzySearch(query);
-        // 高亮
+
+        const result = smartSearch(query);
+
         document.querySelectorAll('#tableBody tr').forEach(tr => {
             tr.classList.remove('highlight-row');
-            if (code && tr.dataset.code === code) {
+            if (result && tr.dataset.code === result.code) {
                 tr.classList.add('highlight-row');
             }
         });
 
-        if (code) {
-            const row = getRowByCode(code);
+        if (result) {
+            const row = getRowByCode(result.code);
             resultCard.style.display = 'flex';
             resultCard.classList.remove('no-result');
-            resultCode.textContent = code;
+            resultCode.textContent = result.code;
             const displayModel = row ? (row[1] || '') : '';
             resultModel.textContent = displayModel.length > 60 ? displayModel.substring(0,60)+'…' : displayModel;
             autoTip.style.display = 'block';
-            autoTip.textContent = `✅ 匹配成功！编号 ${code} 对应机型：${displayModel.substring(0, 50)}...`;
+            autoTip.textContent = `✅ 匹配成功！编号 ${result.code} (匹配关键词: ${result.matchedKey})`;
         } else {
             resultCard.style.display = 'flex';
             resultCard.classList.add('no-result');
@@ -521,9 +540,8 @@
         }
     }
 
-    // ---------- 二维码 (使用固定部署地址) ----------
+    // ---------- 二维码 ----------
     const qrContainer = document.getElementById('qrcode');
-    // 部署后请替换为您的实际网址
     const siteUrl = 'https://wsgzgf.github.io/ghmox/';
     qrContainer.innerHTML = '';
     new QRCode(qrContainer, {
@@ -535,15 +553,12 @@
         correctLevel: QRCode.CorrectLevel.H
     });
 
-    // 页面加载后执行
     window.addEventListener('DOMContentLoaded', () => {
         handleUrlParams();
-        // 默认隐藏结果卡片
         resultCard.style.display = 'none';
         autoTip.style.display = 'none';
     });
 
-    // 暴露给外部
     window.performSearch = performSearch;
 })();
 </script>
