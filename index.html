@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>钢化膜编号 · 小熊系列高清膜</title>
-    <!-- 引入 QRCode.js 用于生成二维码 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -28,7 +26,6 @@
             border-radius: 32px;
             box-shadow: 0 12px 30px rgba(0,0,0,0.08);
             padding: 24px 20px 32px;
-            transition: all 0.2s;
         }
         h1 {
             font-size: 1.8rem;
@@ -38,7 +35,6 @@
             align-items: center;
             gap: 8px;
             margin-bottom: 6px;
-            letter-spacing: -0.3px;
             flex-wrap: wrap;
         }
         .subhead {
@@ -104,9 +100,6 @@
             background: #0e4a9e;
             transform: scale(0.97);
         }
-        .search-btn:active {
-            background: #083b7a;
-        }
         .result-card {
             background: #f0f6ff;
             border-radius: 28px;
@@ -124,7 +117,6 @@
             font-size: 0.9rem;
             color: #2a4c7a;
             font-weight: 500;
-            letter-spacing: 0.3px;
         }
         .result-card .code {
             font-size: 2.2rem;
@@ -135,7 +127,6 @@
             border-radius: 48px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.04);
             font-family: 'SF Mono', 'Menlo', monospace;
-            letter-spacing: 1px;
         }
         .result-card .model-tag {
             background: #1a5bbf10;
@@ -144,6 +135,7 @@
             border-radius: 30px;
             font-size: 0.9rem;
             border: 1px solid #b6cef0;
+            word-break: break-all;
         }
         .no-result {
             color: #b33;
@@ -177,7 +169,6 @@
             border-bottom: 1px solid #e9eef3;
             text-align: center;
             vertical-align: middle;
-            word-break: break-word;
         }
         .code-cell {
             font-weight: 600;
@@ -192,6 +183,7 @@
             font-size: 0.75rem;
             max-width: 220px;
             color: #1f3a5f;
+            word-break: break-word;
         }
         .highlight-row {
             background: #fff5d6 !important;
@@ -231,6 +223,16 @@
             color: #6f7f92;
             text-align: center;
         }
+        .auto-tip {
+            background: #e8f5e9;
+            border-radius: 20px;
+            padding: 10px 18px;
+            color: #2e7d32;
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            border: 1px solid #c8e6c9;
+            display: none;
+        }
         @media (max-width: 600px) {
             .container { padding: 16px 12px; }
             h1 { font-size: 1.5rem; }
@@ -245,9 +247,10 @@
 <body>
 <div class="container" id="app">
     <h1>📱 钢化膜编号 · 小熊系列</h1>
-    <div class="subhead">GX01 ~ GX98 · 高清膜 · 扫码定位</div>
+    <div class="subhead">GX01 ~ GX98 · 高清膜 · 智能匹配</div>
 
-    <!-- 搜索区 -->
+    <div id="autoTip" class="auto-tip">✅ 已自动识别手机型号，正在为您匹配...</div>
+
     <div class="search-section">
         <div class="search-input-wrapper">
             <input type="text" id="searchInput" placeholder="输入手机型号，如 iPhone 15、Nova 11" />
@@ -255,246 +258,294 @@
         <button class="search-btn" id="searchBtn">🔍 查询编号</button>
     </div>
 
-    <!-- 结果卡片 -->
     <div id="resultCard" class="result-card" style="display: none;">
         <span class="label">📌 对应编号</span>
         <span class="code" id="resultCode">—</span>
         <span class="model-tag" id="resultModel">—</span>
     </div>
 
-    <!-- 表格区 -->
     <div class="grid-wrapper">
         <table id="dataTable">
             <thead>
-                <tr><th>编号</th><th>名称</th><th>主型号</th><th>适用机型 (关键词)</th></tr>
+                <tr><th>编号</th><th>主型号</th><th>适用机型 (关键词)</th></tr>
             </thead>
-            <tbody id="tableBody">
-                <!-- 由 JS 动态生成 -->
-            </tbody>
+            <tbody id="tableBody"></tbody>
         </table>
     </div>
 
-    <!-- 二维码 -->
     <div class="qr-section">
         <div class="qr-wrapper">
             <div id="qrcode"></div>
         </div>
-        <div class="qr-hint">📲 手机扫码直达 · 输入型号定位编号</div>
+        <div class="qr-hint">📲 扫码自动匹配 · 支持 URL 参数 ?model=机型</div>
     </div>
-    <div class="footnote">* 数据源自「小熊系列高清膜」 · 点击查询高亮匹配行</div>
+    <div class="footnote">数据源自「小熊系列高清膜」 · 模糊匹配自动定位</div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-    (function() {
-        // --------------------------------------------------------------
-        // 原始数据 (从 xlsx 提取  GX01 ~ GX98, 含部分空行过滤)
-        // 结构: [编号, 名称, 主型号, 适用机型(关键词)]
-        // --------------------------------------------------------------
-        const rawRows = [
-            ["GX01","小熊系列","高清膜","A11X","华为：畅玩 40/畅享 50 Z/优畅享 50E/NZONE S7/畅享 30E/麦芒 11 SE/荣耀 Play 5T/畅玩 30E/畅玩 20/荣耀 Play 6C/畅玩 30M/畅享 50z/畅玩 30a/畅享 20/红米 9A/红米 12/红米 10X Pro/红米 10X /红米 9/麦芒 A20/荣耀 play20/小米 10Lite/红米 Note 11R/酷派 cool30/酷比锋尚 40 - OPPO：OPPO A1 活力版/真我 10S 5G/A8/A11/A11X/A56/A55S/A55 /A35/ 真我 V3/A57/真我 V11s/真我 V11/A58/A58m/A1x/真我 V23/真我 V20/真我 V10/A56s/A57 5G/A97/真我 10s/真我 C35/真我 Q5i/真我 C20/真我 NARZO 30/真我 NARZO20A /A53S(5G)/A77(5G)/iQOO Z7i/M 10/NZONE S7(5G)/ONEPlus/REAlMEV1 - vivo：VIVO Y77E/Y73t/iQOO Z6 X/VIVO Y74S/VIVO Y72T/Y53T/Y55S/iQOO U5X/Y35/Y16/iQOO U5E/iQOO U5X/Z6X/Y10/Y33S/T1X/iQOO U5/Y32/Y55s/Y26/Y11/vivc Y12A/Y15A/Y20/Y20i/Y33/Y33E/Y33T/vivo Y35+/vivo Y35m/vivo Y35m+/Y54s/Y55/Y72/Y76"],
-            ["GX02","小熊系列","高清膜","A52","OPPO：A52/A53 - 5G/真我：V5/A72/A92/真我 Q3i/真我 V13/真我 V15/A93/K9X/A11S/A93S/真我 X70PRO/一加 9r/一加 9t/一加 9/一加 8T/A95/NZONE S7Pro/Reno2/RenoACE2/Reno2F/Reno7Pro - VIVO：iQoo5/ - 华为：荣耀 30/NOVA7 - 小米：红米 NOTE 10(5G)/红米 NOTE 10S/红米 NOTE 10T"],
-            ["GX03","小熊系列","高清膜","X23","华为：Nova 5 Pro/Nova 5/Nova 10 Se - vivo：X23幻彩/X23/iQOO Pro/X21S/iQOO1/ - 小米：小米 CC9/小米 9/红米 Note 7/红米 7/小米 9Pro - OPPO：真我 V11/"],
-            ["GX04","小熊系列","高清膜","X50","OPPO：Reno 7 Pro/真我 GT Neo 5/ - vivo：X60/iQOO Z5X0/iQOO 8/X70TX70/X60T/ - 小米：11 Lite/"],
-            ["GX05","小熊系列","高清膜","荣耀X20","华为：荣耀X10/畅享50plus/荣耀X20/畅享20plus/华为nova10se/荣耀 80 Pro 面/荣耀Play5活力版/荣耀Play7T i ro/荣耀 X30i/荣耀 X40i//荣耀 X50i荣耀 Play 6T Pro - OPPO：真我GT NEC 3/真我GT NEO5/RENO8PRO+/一加ACE/RENO8 Pro/一加 Ace Pro/真我10Pro/真我GTNeo5/真我Q5S/真我Q5/真我Q5Pro/真我9SI/A76/iQOO7/iQOO Neo5活力版/K10 Pro/K9S/nzone50i Pro - vivo：IQOO7/IQOO NEO6 SE/IQOO NEO6/IQOO NEO5S/IQOO NEO5/S15 - 小米：红米NOTE11EPRO/红米NOTE11PRO/红米NOTE11/红米NOTE10 PRO/红米note12pro+/红米note12pro/红米NOTE11T/黑鲨4/红米K50/红米K60/红米K60E/红米K60Pro/红米NOTE11Pro+/红米 Note 11T Pro+/NOTE 2Turbo/红米 Note 12T Pro/红米K40游戏增强版/红米K40Gaing/红米K40Pro/红米K40S/红米K50U tra/小米黑鲨·SGundam/黑鲨鱼4S/小米黑鲨鱼4SPro/红米 K50 Pro/小米Redmi K60 至尊版/Note 3(5G)"],
-            ["GX06","小熊系列","高清膜","荣耀V30","华为：NOVA6/荣耀V30/畅享30/荣耀40青春/荣耀PLAY4 PRO/"],
-            ["GX07","小熊系列","高清膜","IQOO","Z5： - OPPO：K7X - OPPO：真我GTNEO5 - 华为：畅享20SE/ - vivo：iQOO Z5/VIVO T1/iQOO Nec5 SE/ - 小米：红米 Note 11 Pro/红米 Note 9 Pro/红米K30i/小米11/红米 Note 11 Pro+/红米 K30 Pro 至尊版/K3CS"],
-            ["GX08","小熊系列","高清膜","S1","/VIVO Y51s/畅享10Plus/红米10X4G/红米Note95G/红米Note9T/华为Y9s/荣耀9X/荣耀9XPro/真我大师版<br>/真我X/IQOO U1/NEAS/OPPO K3/OPPO Reno10倍变焦版/OPPO Reno【6.6】/VIVO NEX/VIVO S1<br>/VIVO V15/VIVO Y50t/VIVO Y70s 5G/VIVO Y70t 5G/VIVO Z5x/S1/Y50"],
-            ["GX09","小熊系列","高清膜","A92S","/OPPO A92s/红米Note11TPro/红米Note11TPro+/红米Note12TPro/加Ace电竞版/一加Ace竞速版/真我X50t<br>/真我9i/真我Q3s/真我Q3T/真我Q5/真我Q5狂欢版/真我V25/真我X50/真我X50m/iQOO Neo3/OPPO Reno 4Z<br>/IQOO Neo5活力版/iQoo Z1/iQOO Z1x/OPPO A11S/OPPO A32/OPPO K10/OPPO K10活力版/OPPO K10x"],
-            ["GX10","小熊系列","高清膜","A91","OPPO A91/畅享20Pro/畅享20EPro/畅享Z/荣耀30Lite/OPPO K7/OPPO Reno 3/VIVO G1/VIVO S10e<br>/VIVO S6/VIVO S7e/VIVO S7e活力版/VIVO V21E/VIVO X50e台湾/VIVO Y70/VIVO Y71T/VIVO Y73s"],
-            ["GX11","小熊系列","高清膜","RENO4","/OPPO Reno 4/OPPO Reno 4 SE/魅族20/真我11/真我大师版/真我Gtmaster]直屏款/真我V15/真我X7/<br>OPPO A74 4G/OPPO A95/OPPO A96/OPPO F19 Pro/OPPO F19 Pro+5G/OPPO K9/OPPO Reno 5 F<br>/OPPO Reno 5 Lite/OPPO Reno 7 SE/OPPO Reno 8/OPPO Reno 8Z"],
-            ["GX12","小熊系列","高清膜","RENO6","OPPO：RENO7/RENO6/RENO5K/RENO5/OPPO Reno 6/OPPO Reno 6Z/真我8/真我GT大师版/真我GT Neo<br>/真我GT(5G)/真我Q2Pro/真我Q3Pro/真我Q3Pro狂欢版/oPPO A94/OPPO K9 Pro/OPPO Reno 5<br>/OPPO Reno 5 K/OPPO Reno 5 Z/OPPO Reno 7/OPPO Reno 7Z 5G/真我GT Neo2T/真我GT Neo闪速"],
-            ["GX13","小熊系列","高清膜","R17","- OPPO：真我X2/Reno Z/R19/R17Pro/R15X/OPPO k1 R17 - OPPO：A3/R15/F7/真我 C1/真我2"],
-            ["GX14","小熊系列","高清膜","X21","/VIVO X21/VIVO X21A/VIVO X21i/红米Note6/小米8Lite/—加6/OPPO A3/OPPO A3s/OPPO A5<br>/OPPO F7/OPPO R15/OPPO R15 Pro/VIVO V9/VIVO Y81/VIVO Y81i/VIVO Y81S/VIVO Y83<br>/VIVO Y85/VIVO Y89/VIVO Z1/VIVO Z1青春/VIVO Z1 Lite/VIVO Z1i/VIVO Z3X"],
-            ["GX15","小熊系列","高清膜","S10","vivoS12/vivoS10Ppro/vivoS10/vivoS9/vivoS7/vivo20pro/vivoS7/"],
-            ["GX16","小熊系列","高清膜","NOVA7i","OPPO：真我GT/真我GT NEO/真我GT NEO2T/K9PR 真我Q3PRO/真我X50PRO/K9 - vivo：IQOO3/X30PRO/X30/SS/ - 华为：MAGIC2/"],
-            ["GX17","小熊系列","高清膜","X27","/VIVO X27/红米K20/红米K20Pro/华为Nova4/荣耀Magic2/荣耀V20/三星Galaxy A60/三星Galaxy S21FE<br>/三星Galaxy S23FE/小米9T/小米9TPro/小米MIX3/OPPO Reno【6.4】/VIVO NEX2前/VIVO S1 Pro"],
-            ["GX18","小熊系列","高清膜","荣耀X20SE","华为：NOVA10 Z/D20麦芒10/NOVA8SE活力版/荣耀X20SE/荣耀 30S - vivo：NZONE S7PRO/真我X7 Pro/ - 小米：红米NOTE10T/红米NOTE11 SE/nova10z/畅享50Plus/华为Nova8i/华为nova9z/麦芒10/荣耀Play5TPro/优畅享50PIus/Hi nova 9z/OPPO A55S 4G/Wiko T50"],
-            ["GX19","小熊系列","高清膜","荣耀X30","/荣耀X30/荣耀X40GT/荣耀X40GT竞速版/OPPO F23 5G/OPPO F23 Pro"],
-            ["GX20","小熊系列","高清膜","",""],
-            ["GX21","小熊系列","高清膜","荣耀9A","/畅享10E/畅享10s/畅享20E/荣耀20Lite/荣耀30i/荣耀Play4TPro"],
-            ["GX22","小熊系列","高清膜","荣耀X50","华为：荣耀X40i/畅享50 Pro/荣耀PLAY6T PRO/荣耀X30i/荣耀 X50 - OPPO：一加10T/一加 Ace Pro/ - vivo：X27 Pro/Y17/ - 小米：红米K50至尊版/小米9Pro/小米9X/红米NOTE7S//小米9Pro/小米9Pro5G/畅享9/红米7红米Note7/红米 Note 7 Pro/红米Note7s/红米Note 8/华为Nova5/华为Nova 5 Pro/小米9/Galaxy A40S/IQ00青春<br>/小米10SE/小米9/小米CC9/一加6T/真我Q/真我XT/一加7/真我5 Pro/真我X Lite/真我X2/Galaxy A30<br>/iQ00 Pro/OPPO A40S/OPPO K1/Galaxy A50/iQ00/iQ00 Neo/OPPO A30/OPPO A50/OPPO K5OPPO R15X/OPPO R17<br>/OPPO R19/OPPO R17 Pro/OPPO Reno Z/VIVO U10/VIVO V11 Pro/VIVOX23/VIVOY17/VIVO Y3s/VIVOU3X/VIVO X21s<br>/vivoX23幻彩版/VIVO Y19/VIVOY3/VIVO Y7Pro 2019/VIVOY7S/VIVOY9s/VIVOZ5"],
-            ["GX23","小熊系列","高清膜","荣耀9X","- 华为：畅享10PLUS/荣耀9XPRO/荣耀9X"],
-            ["GX24","小熊系列","高清膜","RENO2","Nova7SE//OPPO Reno 2/OPPO Reno2F/OPPO Reno2Z/红米Note10S/红米Note10T/华为Nova7/荣耀30/Galaxy S20 FE<br>/三星A52(5G)/三星A53(5G)/一加8T/一加9/一加9R/真我Q3/真我Q3引/真我X7Pro/OPPO Reno Ace2/OPPO Reno7 Pro"],
-            ["GX25","小熊系列","高清膜","A96","A96/A95/OPPO A9/OPPO A9x/红米9/红米Note8Pro/红米Note94G/一加7T/真我X2Pro/中兴Blade V2020<br>/OPPO Reno Ace/VIVO U3/VIVO Y01/VIVO Y5s/VIVO Z5i"],
-            ["GX26","小熊系列","高清膜","荣耀50SE","小米：红米NOTE11 SE/红米Note 8 Pro/红米NOTE9 4G - vivo：Z5i/Y5s/ - 华为：麦芒9/Hi nova 9 SE/荣耀50SE/NOVA9SE/畅享60Pro - OPPO：真我Q5/OPPO A1 (2023)/A98 5G"],
-            ["GX27","小熊系列","高清膜","IQOO9","- vivo：IQOO11/IQOO10/IQOO9/IQOO 11S/IQOO Neo5 SE/IQOO Neo7/IQooNeo7竞速/IQooNeo7se/IQooNeo8/IQooNeo8Pro/IQooZ5/IQooZ8/IQooZ8X/IQooZ 小米 红米note9S/红米NOTE12（5G）/K11X"],
-            ["GX28","小熊系列","高清膜","红米K50","- 小米：红米K60/红米NOTE11TPro/红米K50PRO/红米K50/红米K40S - 华为/荣耀：荣耀80 GT/ - OPPO：真我GT NEO5/一加 Ace 2V"],
-            ["GX29","小熊系列","高清膜","VIVOY97","真我 Q/真我 X Lite/VIVO Y97 /红米8 /红米8A /真我3 /真我2Pro /真我3Pro /OPPO A5S /OPPO A7 /OPPO A7x /OPPO F9/ VIVO U1/VIVO V11/VIVO ZBi/VIVO V11i/VIVO Y91/ VIVO Y91s /VIVO Y93/VIVO Y93i / VIVO Y93s<br> /VIVO Y95 /VIVO Y95s /VIVO Z3"],
-            ["GX30","小熊系列","高清膜","S9E","vivo S15E/VIVO S10E/vivo S9e/v21"],
-            ["GX31","小熊系列","高清膜","NOVA7","- 华为：荣耀30/NOVA7 - 华为：荣耀 30 Lite/畅享20 Pro/畅享Z"],
-            ["GX32","小熊系列","高清膜","畅享20PRO","vivo：T2/Y33e/Y3s/ - 小米：红米8A"],
-            ["GX33","小熊系列","高清膜","畅享10","荣耀PLAY4T/畅享10/荣耀PLAY3/VIVO S5/畅享10/真我X50Pro/真我X7Max/1Q003/VIVO X30/VIVO X30 Pro/VIVO s5"],
-            ["GX34","小熊系列","高清膜","畅玩20PRO","华为：畅玩20PRO/荣耀PLAY5/NOVA8SE/Nzone S7 Pro+"],
-            ["GX35","小熊系列","高清膜","畅享20","华为：红米10A/红米9C/红米9A/荣耀 Play 5T 活力版/畅享20 - 小米："],
-            ["GX36","小熊系列","高清膜","荣耀400Lite","/麦芒40/荣耀90GT/荣耀Play8TPro/荣耀Play9TPro/荣耀X50i+/荣耀X60GT/荣耀X60i<br>/荣耀X60i 5G/荣耀X70i/Honor 200Lite/Honor 400Lite/Honor X8b/OPPO A5 5G/VIKO Hi畅享80Pro"],
-            ["GX37","小熊系列","高清膜","Y7S","vivo：Y9S/vivo z5/Y7S/iQOO Neo - OPPO：K10PRO/真我GT 2PRO/真我Q5PRO/K40PRO/OPPO K10X"],
-            ["GX38","小熊系列","高清膜","红米K40","小米：K50至尊版/红米K40/K40PRO - vivo：vivos16e/S15/IQOO 7 - 华为：NOVA10 SE/"],
-            ["GX39","小熊系列","高清膜","红米NOTE9(5G)","小米：红米10X(4G)/红米NOTE9(5G)"],
-            ["GX40","小熊系列","高清膜","荣耀400","荣耀400/荣耀400pro"],
-            ["GX41","小熊系列","高清膜","红米k30/K30PRO","/红米K30/红米K30Pr0/红米K30(5G)/红米K30i/红米K30S/红米K30S至尊版/Hi畅享70Pro5G/畅享20SE<br>/畅享50Pr0/畅享70Pro/黑鲨4/黑鲨4PrO/黑鲨4sPro/黑鲨5/黑鲨5Pro/黑鲨5RS/红米K40/红米K40Pro<br>/红米Note10Pro/红米Note11Pro/红米Note11Pro+/红米Note11EPro/红米Note9Pro/红米Note9S<br>/红魔5Pro/红魔6R/荣耀Play6TPro/荣耀Play7TPro/荣耀X40i/荣耀X501/三星C55(5G)/小米10TPr05G<br>/小米11i/一加Ace2V/一加Ace Pro/真我10Pro/真我GT2Pro/真我GT5/中兴Axon30Pr05G/中兴S30<br>/中兴S30Pro/中兴天机A315G/中兴天机A31Pro5G/中兴远航20Pro/中兴远航40Pr0+/中兴远航41Pr0+<br>/中兴远航40Pr0+星空版/中兴V70/IQOO Neo 5/IQOO Neo5 SE/IQOO Z5/IQOO Z6/IQOOZ7<br>/IQOO Z7x/IQOO Z8/IQOO Z8x/OPPO A3i/OPPO A71/OPPO K13s/VIVO T1/VIVO X27 Pro<br>/VIVO Y100i/VIVO Y300 5G/VIVO Y77/VIVO Y78/VIVO Y78m 5G/VIVO Y78T/VIVO T2"],
-            ["GX42","小熊系列","高清膜","NOVA5i","华为：NOVA6SE/NOVA5i/NOVA7i"],
-            ["GX43","小熊系列","高清膜","NOVA5iPRO","华为：NOVA5Z/NOVA5iPRO/Nova 5Z/荣耀20/荣耀20Pro/荣耀20s/Mate30lite/Nova 5T"],
-            ["GX44","小熊系列","高清膜","荣耀10青春","华为：荣耀10i/麦芒8/荣耀20i/荣耀 10 Lite/畅享9S/荣耀10青春/荣耀10i/荣耀20Se"],
-            ["GX45","小熊系列","高清膜","NOVA4","/荣耀V20/红米K20/红米K20Pr0/华为Nova4/荣耀Magic2/三星Galaxy A60/三星Galaxy S21FE/三星Galaxy Sa23FE<br>/小米9T/小米9TPro/小米MX3/OPPO Reno【6.4】/VIVO NEX2前/VIVO S1 Pro/VIVO X27"],
-            ["GX46","小熊系列","高清膜","荣耀8X","畅享7plas"],
-            ["GX47","小熊系列","高清膜","华为p30","华为p30"],
-            ["GX48","小熊系列","高清膜","小米13/小米14","小米13/小米14"],
-            ["GX49","小熊系列","高清膜","NOVA11","/华为Nova11//Hi nova 11华为Nova12/华为Nova12活力板/华为Nova12Lite/华为Nova12s/华为NoVa13/华为Nova14<br>华为Nova14Lite/华为Nova15/荣耀90GT/荣耀畅玩60/荣耀畅玩60m/荣耀Play10C/荣耀X60GT/荣耀X6c/OPPO A5 2025"],
-            ["GX50","小熊系列","高清膜","P40","- 华为：P40"],
-            ["GX51","小熊系列","高清膜","P50E/P50","- 华为：P50E/P50"],
-            ["GX52","小熊系列","高清膜","MATE20","- 华为：MATE20"],
-            ["GX53","小熊系列","高清膜","MATE30","- 华为：MATE30"],
-            ["GX54","小熊系列","高清膜","VIVO X100s","VIVO X100s/畅享60Pro/畅享90/畅享90Plus/畅享80/红米Note12/红米Note12 5G/红米Note12RPro/畅享90 M Plus<br>/华为Nova9SE/麦芒20/荣耀50SE/远航30Pro/真我12/真我12X/真我13/真我V50/真我V50s/真我V60/真我V60s<br>/真我V70/真我155G/中兴S30SE全网通5G/中兴远航30Pro/Hi畅享80Plus/Hi Nova 9 SE/1Q0010/1Q0011<br>/1Q0011S/1Q009/IQ0O Neo 8/IQ0O Neo7/IQOO Neo7竞速版/IQOO Neo7 SE/I000 Neo8 Pro/IOOO Neo9<br>/iQOO Neo9 Pro/iQOO Neo9S Pro/iQOO Z10 Turbo/iQOO Z10 Turbo Pro/iQOO Z10x/iQOO Z9 5G<br>/iQOO Z9 Turbo+/iQOO Z9x 5G/NOVA10青春/nubia Neo 2 5G/OPPO A3活力版/OPPO A1 5G/OPPO A1s 5G<br>/OPPO A2 5G/A3x/OPPO A52025海外/OPPO A5活力版/OPPO A5x/OPPO A5x 5G/OPPO A6i 5G/OPPO A98 5G<br>/OPPO K11x/OPPO K13s 5G/OPPO K13x/VIVO S19/VIVO Y200 GT/VIVO S19/VIVO Y200 GT/VIVO Y200i<br>/VIVO Y200t/VIVO Y300i/VIVO Y300t/VIVO Y37 Pro/Wiko 5G"],
-            ["GX55","小熊系列","高清膜","OPPO Reno16","一加13T/OPPO Find X8S/VIVO S30 Pro mini/VIVO X200 Pro mini"],
-            ["GX56","小熊系列","高清膜","","小米17T/红米K90/红米K90Pro/红米Turbo5/荣耀Play11Plus/荣耀X80i"],
-            ["GX57","小熊系列","高清膜","","VIVO S18/VIVO S18 Pro/一加8Pro/IQOO 10 Pro/IQOO 11 Pro/IQOO 12 Pro/IQOO 8 Pro/IQOO 9 Pro/<br>OPPO Find X2/VIVO Y78+/OPPO Find X2 Pro/VIVO S19 Pro/VIVO S17/VIVO S17 Pro/VIVO S17t/<br>VIVO X70 Pro+/VIVO X80/VIVO X80 Pro/VIVO Y200"],
-            ["GX58","小熊系列","高清膜","华为Mate40","华为Mate40/华为Mate40E/华为P30Pro/小米CC9Pro/小米Civi/小米Ciwi1S/OPPO Find X/TDTechM40"],
-            ["GX59","小熊系列","高清膜","华为Mate40Pro","华为Mate40Pro+/华为Mate40RS/华为Mate40EPro/荣耀Magic3/荣耀Magic3至臻版/荣耀Magic3Pro"],
-            ["GX60","小熊系列","高清膜","华为Mate50<br> 华为Mate60","华为Mate50/华为Mate50E/华为Mate60/荣耀80GT/荣耀80Pro直面/红米K50电竞版/红米Note12Pro/红米Note12Pro极速版/红米Note12Pro+/—加Ace3V"],
-            ["GX61","小熊系列","高清膜","华为mate60pro","华为Mate60Pro+/华为Mate60RS/华为Nova8Pro/华为NoVa9Pro/荣耀50Pro/荣耀V40/荣耀V40Pro/Hi Nova 9 Pro"],
-            ["GX62","小熊系列","高清膜","华为Mate 70",""],
-            ["GX63","小熊系列","高清膜","华为Mate 70 pro","华为Mate70Pro/华为Mate70PRO+/华为Mate70RS"],
-            ["GX64","小熊系列","高清膜","华为Nova13<br>","华为Nova11/华为Nova12/华为NoVa12活力版/<br>华为Nova14/华为Nova14活力版/华为Nova15/华为Nova16z/Hi Nova 11/OPPO A5 2025/OPPO A6 Plus"],
-            ["GX65","小熊系列","高清膜","","红米Note13 5G/红米Note13Pro/红米Note13RPro/畅享20Plus/红米K40游戏增强版/红米K40S/红米K50/红米K50至尊版<br>/红米K50Pro/红米K50 Ultra/红米K60/红米K60至尊版/红米K60E/红米K60Pro/红米K70/红米K70Pro/红米K70E<br>/红米Note11(5G)/红米Note12 Turbo/红米Note145G/红米Turbo3/华为Nova10Se/华为Nova11SE<br>/荣耀300/荣耀GT/荣耀Play5活力版/荣耀X10/荣耀X20/荣耀X30i/一加Ace/优畅享20Plus/真我13Pro/真我9SE<br>/真我GT Neo2/真我GT Neo3/真我GT Neo5/真我GT Neo3T/真我GT Neo5SE/真我GT2/真我GT2大师探索版/Hi畅享60Pro<br>/Hi Nova 12 se/iQ007/IQOO Neo 5S/IQOO Neo 6/IQOO Neo6 SE/Nzone 50 Pro/OPPO A3 5G/OPPO A36 4G<br>/OPPO A6 5G/OPPO A76/OPPO K10 Pro/OPPO K11/OPPO K12/OPPO K12 Plus/OPPO K12s/OPPO K12x/OPPO K9S<br>/OPPO Reno 8 Pro/OPPO Reno 8 Pro+/VIVO S15/VIVO S16e/VIVO S18e/VIVO Y100t/VIVO Y77t"],
-            ["GX66","小熊系列","高清膜","畅玩70Plus","畅玩70Plus/畅玩50Plus/畅玩60Plus/畅玩80Pro/红米12 5G/红米12/红米13 4G/红米13 5g/红米13X<br>/红米Note12R/红米Note13R/荣耀200 smart/荣耀Play10T/荣耀Play8T/荣耀Play9T/荣耀X7b"],
-            ["GX67","小熊系列","高清膜","畅玩30Plus","/畅玩30Plus/畅玩10A/畅玩40PuS/畅玩60A/畅玩80/畅享30PIuS/畅享50/畅享60/畅享70/畅享70s/畅享70z<br>/红米12C/红米13C/红米13r/红米A3/华为Nova Y70/华为Nova Y72/麦芒11/荣耀 Play 5T//荣耀Play6T/耀Play7T<br>/Hi畅享60/Hi畅享60s/Hi畅享70m/Hi畅享70Plus/VIVO Y50/VIVO Y50 5G/VIVO Y50e/VIVO Y60/WIKO 10"],
-            ["GX68","小熊系列","高清膜","",""],
-            // 苹果系列
-            ["GX80","小熊系列","高清膜","i 7G/X8G","苹果：iphone 7G黑白/8G黑白"],
-            ["GX81","小熊系列","高清膜","i 7p/X8p","苹果：iphone 7p黑白/8p黑白"],
-            ["GX82","小熊系列","高清膜","ip X","苹果：iphone X/XS/11Pro"],
-            ["GX83","小熊系列","高清膜","iXSMax","苹果：iPhone XSMax/iPhone 11proMax"],
-            ["GX84","小熊系列","高清膜","i11/XR","苹果：iPhone 11/iPhone XR"],
-            ["GX85","小熊系列","高清膜","i12ProMax","苹果：iPhone 12 Pro Max"],
-            ["GX86","小熊系列","高清膜","i12","苹果：iPhone 12/iPhone 12 Pro"],
-            ["GX87","小熊系列","高清膜","i13","苹果：iPhone 13/iPhone 13 Pro/iPhone 14/iPhone 16e/iPhone 17e"],
-            ["GX88","小熊系列","高清膜","i13ProMax","苹果：iPhone 14 Plus/iPhone 13 Pro Max"],
-            ["GX89","小熊系列","高清膜","i14Pro","苹果：iPhone 14 Pro"],
-            ["GX90","小熊系列","高清膜","i14ProMax","苹果：iPhone 14 Pro Max"],
-            ["GX91","小熊系列","高清膜","iPhone 15","苹果：iPhone 15/iPhone 16"],
-            ["GX92","小熊系列","高清膜","iPhone15Plus","苹果：iPhone 15 Plus/iPhone 16 Plus"],
-            ["GX93","小熊系列","高清膜","iPhone15Pro","苹果：iPhone 15 Pro"],
-            ["GX94","小熊系列","高清膜","iPhone15ProMax","苹果：iPhone15 Pro Max"],
-            ["GX95","小熊系列","高清膜","iPhone16Pro","苹果：iPhone 17/iPhone16Pro"],
-            ["GX96","小熊系列","高清膜","iPhone16ProMax","苹果：iPhone16ProMax"],
-            ["GX97","小熊系列","高清膜","iPhone17Pro","苹果：iPhone17Pro"],
-            ["GX98","小熊系列","高清膜","iPhone17ProMax","华为NoVa15Pro/华为Nova15 Ultra/华为NoVa16Pro/华为Nova16 Ultra/华为P90/华为Pura90/小米17 Pro Max/<br>畅享90 Pro Max/红米K90 Pro Max/小米17Utra/小米17"]
-        ];
+(function() {
+    // --------------------------------------------------------------
+    // 数据: 从Excel提取 (编号 + 适用机型)
+    // 每项: [编号, 适用机型]
+    // --------------------------------------------------------------
+    const rawData = [
+      ["GX01", "华为：畅玩 40/畅享 50 Z/优畅享 50E/NZONE S7/畅享 30E/麦芒 11 SE/荣耀 Play 5T/畅玩 30E/畅玩 20/荣耀 Play 6C/畅玩 30M/畅享 50z/畅玩 30a/畅享 20/红米 9A/红米 12/红米 10X Pro/红米 10X /红米 9/麦芒 A20/荣耀 play20/小米 10Lite/红米 Note 11R/酷派 cool30/酷比锋尚 40 - OPPO：OPPO A1 活力版/真我 10S 5G/A8/A11/A11X/A56/A55S/A55 /A35/ 真我 V3/A57/真我 V11s/真我 V11/A58/A58m/A1x/真我 V23/真我 V20/真我 V10/A56s/A57 5G/A97/真我 10s/真我 C35/真我 Q5i/真我 C20/真我 NARZO 30/真我 NARZO20A /A53S(5G)/A77(5G)/iQOO Z7i/M 10/NZONE S7(5G)/ONEPlus/REAlMEV1 - vivo：VIVO Y77E/Y73t/iQOO Z6 X/VIVO Y74S/VIVO Y72T/Y53T/Y55S/iQOO U5X/Y35/Y16/iQOO U5E/iQOO U5X/Z6X/Y10/Y33S/T1X/iQOO U5/Y32/Y55s/Y26/Y11/vivc Y12A/Y15A/Y20/Y20i/Y33/Y33E/Y33T/vivo Y35+/vivo Y35m/vivo Y35m+/Y54s/Y55/Y72/Y76"],
+      ["GX02", "OPPO：A52/A53 - 5G/真我：V5/A72/A92/真我 Q3i/真我 V13/真我 V15/A93/K9X/A11S/A93S/真我 X70PRO/一加 9r/一加 9t/一加 9/一加 8T/A95/NZONE S7Pro/Reno2/RenoACE2/Reno2F/Reno7Pro - VIVO：iQoo5/ - 华为：荣耀 30/NOVA7 - 小米：红米 NOTE 10(5G)/红米 NOTE 10S/红米 NOTE 10T"],
+      ["GX03", "华为：Nova 5 Pro/Nova 5/Nova 10 Se - vivo：X23幻彩/X23/iQOO Pro/X21S/iQOO1/ - 小米：小米 CC9/小米 9/红米 Note 7/红米 7/小米 9Pro - OPPO：真我 V11/"],
+      ["GX04", "OPPO：Reno 7 Pro/真我 GT Neo 5/ - vivo：X60/iQOO Z5X0/iQOO 8/X70TX70/X60T/ - 小米：11 Lite/"],
+      ["GX05", "华为：荣耀X10/畅享50plus/荣耀X20/畅享20plus/华为nova10se/荣耀 80 Pro 面/荣耀Play5活力版/荣耀Play7T i ro/荣耀 X30i/荣耀 X40i//荣耀 X50i荣耀 Play 6T Pro - OPPO：真我GT NEC 3/真我GT NEO5/RENO8PRO+/一加ACE/RENO8 Pro/一加 Ace Pro/真我10Pro/真我GTNeo5/真我Q5S/真我Q5/真我Q5Pro/真我9SI/A76/iQOO7/iQOO Neo5活力版/K10 Pro/K9S/nzone50i Pro - vivo：IQOO7/IQOO NEO6 SE/IQOO NEO6/IQOO NEO5S/IQOO NEO5/S15 - 小米：红米NOTE11EPRO/红米NOTE11PRO/红米NOTE11/红米NOTE10 PRO/红米note12pro+/红米note12pro/红米NOTE11T/黑鲨4/红米K50/红米K60/红米K60E/红米K60Pro/红米NOTE11Pro+/红米 Note 11T Pro+/NOTE 2Turbo/红米 Note 12T Pro/红米K40游戏增强版/红米K40Gaing/红米K40Pro/红米K40S/红米K50U tra/小米黑鲨·SGundam/黑鲨鱼4S/小米黑鲨鱼4SPro/红米 K50 Pro/小米Redmi K60 至尊版/Note 3(5G)"],
+      ["GX06", "华为：NOVA6/荣耀V30/畅享30/荣耀40青春/荣耀PLAY4 PRO/"],
+      ["GX07", "Z5： - OPPO：K7X - OPPO：真我GTNEO5 - 华为：畅享20SE/ - vivo：iQOO Z5/VIVO T1/iQOO Nec5 SE/ - 小米：红米 Note 11 Pro/红米 Note 9 Pro/红米K30i/小米11/红米 Note 11 Pro+/红米 K30 Pro 至尊版/K3CS"],
+      ["GX08", "/VIVO Y51s/畅享10Plus/红米10X4G/红米Note95G/红米Note9T/华为Y9s/荣耀9X/荣耀9XPro/真我大师版<br>/真我X/IQOO U1/NEAS/OPPO K3/OPPO Reno10倍变焦版/OPPO Reno【6.6】/VIVO NEX/VIVO S1<br>/VIVO V15/VIVO Y50t/VIVO Y70s 5G/VIVO Y70t 5G/VIVO Z5x/S1/Y50"],
+      ["GX09", "/OPPO A92s/红米Note11TPro/红米Note11TPro+/红米Note12TPro/加Ace电竞版/一加Ace竞速版/真我X50t<br>/真我9i/真我Q3s/真我Q3T/真我Q5/真我Q5狂欢版/真我V25/真我X50/真我X50m/iQOO Neo3/OPPO Reno 4Z<br>/IQOO Neo5活力版/iQoo Z1/iQOO Z1x/OPPO A11S/OPPO A32/OPPO K10/OPPO K10活力版/OPPO K10x<br>"],
+      ["GX10", "OPPO A91/畅享20Pro/畅享20EPro/畅享Z/荣耀30Lite/OPPO K7/OPPO Reno 3/VIVO G1/VIVO S10e<br>/VIVO S6/VIVO S7e/VIVO S7e活力版/VIVO V21E/VIVO X50e台湾/VIVO Y70/VIVO Y71T/VIVO Y73s"],
+      ["GX11", "/OPPO Reno 4/OPPO Reno 4 SE/魅族20/真我11/真我大师版/真我Gtmaster]直屏款/真我V15/真我X7/<br>OPPO A74 4G/OPPO A95/OPPO A96/OPPO F19 Pro/OPPO F19 Pro+5G/OPPO K9/OPPO Reno 5 F<br>/OPPO Reno 5 Lite/OPPO Reno 7 SE/OPPO Reno 8/OPPO Reno 8Z"],
+      ["GX12", "OPPO：RENO7/RENO6/RENO5K/RENO5/OPPO Reno 6/OPPO Reno 6Z/真我8/真我GT大师版/真我GT Neo<br>/真我GT(5G)/真我Q2Pro/真我Q3Pro/真我Q3Pro狂欢版/oPPO A94/OPPO K9 Pro/OPPO Reno 5<br>/OPPO Reno 5 K/OPPO Reno 5 Z/OPPO Reno 7/OPPO Reno 7Z 5G/真我GT Neo2T/真我GT Neo闪速"],
+      ["GX13", "- OPPO：真我X2/Reno Z/R19/R17Pro/R15X/OPPO k1 R17 - OPPO：A3/R15/F7/真我 C1/真我2"],
+      ["GX14", "/VIVO X21/VIVO X21A/VIVO X21i/红米Note6/小米8Lite/—加6/OPPO A3/OPPO A3s/OPPO A5<br>/OPPO F7/OPPO R15/OPPO R15 Pro/VIVO V9/VIVO Y81/VIVO Y81i/VIVO Y81S/VIVO Y83<br>/VIVO Y85/VIVO Y89/VIVO Z1/VIVO Z1青春/VIVO Z1 Lite/VIVO Z1i/VIVO Z3X"],
+      ["GX15", "vivoS12/vivoS10Ppro/vivoS10/vivoS9/vivoS7/vivo20pro/vivoS7/"],
+      ["GX16", "OPPO：真我GT/真我GT NEO/真我GT NEO2T/K9PR 真我Q3PRO/真我X50PRO/K9 - vivo：IQOO3/X30PRO/X30/SS/ - 华为：MAGIC2/"],
+      ["GX17", "/VIVO X27/红米K20/红米K20Pro/华为Nova4/荣耀Magic2/荣耀V20/三星Galaxy A60/三星Galaxy S21FE<br>/三星Galaxy S23FE/小米9T/小米9TPro/小米MIX3/OPPO Reno【6.4】/VIVO NEX2前/VIVO S1 Pro"],
+      ["GX18", "华为：NOVA10 Z/D20麦芒10/NOVA8SE活力版/荣耀X20SE/荣耀 30S - vivo：NZONE S7PRO/真我X7 Pro/ - 小米：红米NOTE10T/红米NOTE11 SE/nova10z/畅享50Plus/华为Nova8i/华为nova9z/麦芒10/荣耀Play5TPro/优畅享50PIus/Hi nova 9z/OPPO A55S 4G/Wiko T50"],
+      ["GX19", "/荣耀X30/荣耀X40GT/荣耀X40GT竞速版/OPPO F23 5G/OPPO F23 Pro"],
+      ["GX20", ""],
+      ["GX21", "/畅享10E/畅享10s/畅享20E/荣耀20Lite/荣耀30i/荣耀Play4TPro<br>"],
+      ["GX22", "华为：荣耀X40i/畅享50 Pro/荣耀PLAY6T PRO/荣耀X30i/荣耀 X50 - OPPO：一加10T/一加 Ace Pro/ - vivo：X27 Pro/Y17/ - 小米：红米K50至尊版/小米9Pro/小米9X/红米NOTE7S//小米9Pro/小米9Pro5G/畅享9/红米7红米Note7/红米 Note 7 Pro/红米Note7s/红米Note 8/华为Nova5/华为Nova 5 Pro/小米9/Galaxy A40S/IQ00青春<br>/小米10SE/小米9/小米CC9/一加6T/真我Q/真我XT/一加7/真我5 Pro/真我X Lite/真我X2/Galaxy A30<br>/iQ00 Pro/OPPO A40S/OPPO K1/Galaxy A50/iQ00/iQ00 Neo/OPPO A30/OPPO A50/OPPO K5OPPO R15X/OPPO R17<br>/OPPO R19/OPPO R17 Pro/OPPO Reno Z/VIVO U10/VIVO V11 Pro/VIVOX23/VIVOY17/VIVO Y3s/VIVOU3X/VIVO X21s<br>/vivoX23幻彩版/VIVO Y19/VIVOY3/VIVO Y7Pro 2019/VIVOY7S/VIVOY9s/VIVOZ5"],
+      ["GX23", "- 华为：畅享10PLUS/荣耀9XPRO/荣耀9X"],
+      ["GX24", "Nova7SE//OPPO Reno 2/OPPO Reno2F/OPPO Reno2Z/红米Note10S/红米Note10T/华为Nova7/荣耀30/Galaxy S20 FE<br>/三星A52(5G)/三星A53(5G)/一加8T/一加9/一加9R/真我Q3/真我Q3引/真我X7Pro/OPPO Reno Ace2/OPPO Reno7 Pro"],
+      ["GX25", "A96/A95/OPPO A9/OPPO A9x/红米9/红米Note8Pro/红米Note94G/一加7T/真我X2Pro/中兴Blade V2020<br>/OPPO Reno Ace/VIVO U3/VIVO Y01/VIVO Y5s/VIVO Z5i"],
+      ["GX26", "小米：红米NOTE11 SE/红米Note 8 Pro/红米NOTE9 4G - vivo：Z5i/Y5s/ - 华为：麦芒9/Hi nova 9 SE/荣耀50SE/NOVA9SE/畅享60Pro - OPPO：真我Q5/OPPO A1 (2023)/A98 5G"],
+      ["GX27", "- vivo：IQOO11/IQOO10/IQOO9/IQOO 11S/IQOO Neo5 SE/IQOO Neo7/IQooNeo7竞速/IQooNeo7se/IQooNeo8/IQooNeo8Pro/IQooZ5/IQooZ8/IQooZ8X/IQooZ 小米 红米note9S/红米NOTE12（5G）/K11X"],
+      ["GX28", "- 小米：红米K60/红米NOTE11TPro/红米K50PRO/红米K50/红米K40S - 华为/荣耀：荣耀80 GT/ - OPPO：真我GT NEO5/一加 Ace 2V"],
+      ["GX29", "真我 Q/真我 X Lite/VIVO Y97 /红米8 /红米8A /真我3 /真我2Pro /真我3Pro /OPPO A5S /OPPO A7 /OPPO A7x /OPPO F9/ VIVO U1/VIVO V11/VIVO ZBi/VIVO V11i/VIVO Y91/ VIVO Y91s /VIVO Y93/VIVO Y93i / VIVO Y93s<br> /VIVO Y95 /VIVO Y95s /VIVO Z3"],
+      ["GX30", "vivo S15E/VIVO S10E/vivo S9e/v21"],
+      ["GX31", "- 华为：荣耀30/NOVA7 - 华为：荣耀 30 Lite/畅享20 Pro/畅享Z"],
+      ["GX32", "vivo：T2/Y33e/Y3s/ - 小米：红米8A"],
+      ["GX33", "荣耀PLAY4T/畅享10/荣耀PLAY3/VIVO S5/畅享10/真我X50Pro/真我X7Max/1Q003/VIVO X30/VIVO X30 Pro/VIVO s5"],
+      ["GX34", "华为：畅玩20PRO/荣耀PLAY5/NOVA8SE/Nzone S7 Pro+"],
+      ["GX35", "华为：红米10A/红米9C/红米9A/荣耀 Play 5T 活力版/畅享20 - 小米："],
+      ["GX36", "/麦芒40/荣耀90GT/荣耀Play8TPro/荣耀Play9TPro/荣耀X50i+/荣耀X60GT/荣耀X60i<br>/荣耀X60i 5G/荣耀X70i/Honor 200Lite/Honor 400Lite/Honor X8b/OPPO A5 5G/VIKO Hi畅享80Pro"],
+      ["GX37", "vivo：Y9S/vivo z5/Y7S/iQOO Neo - OPPO：K10PRO/真我GT 2PRO/真我Q5PRO/K40PRO/OPPO K10X"],
+      ["GX38", "小米：K50至尊版/红米K40/K40PRO - vivo：vivos16e/S15/IQOO 7 - 华为：NOVA10 SE/"],
+      ["GX39", "小米：红米10X(4G)/红米NOTE9(5G)"],
+      ["GX40", "荣耀400/荣耀400pro"],
+      ["GX41", "/红米K30/红米K30Pr0/红米K30(5G)/红米K30i/红米K30S/红米K30S至尊版/Hi畅享70Pro5G/畅享20SE<br>/畅享50Pr0/畅享70Pro/黑鲨4/黑鲨4PrO/黑鲨4sPro/黑鲨5/黑鲨5Pro/黑鲨5RS/红米K40/红米K40Pro<br>/红米Note10Pro/红米Note11Pro/红米Note11Pro+/红米Note11EPro/红米Note9Pro/红米Note9S<br>/红魔5Pro/红魔6R/荣耀Play6TPro/荣耀Play7TPro/荣耀X40i/荣耀X501/三星C55(5G)/小米10TPr05G<br>/小米11i/一加Ace2V/一加Ace Pro/真我10Pro/真我GT2Pro/真我GT5/中兴Axon30Pr05G/中兴S30<br>/中兴S30Pro/中兴天机A315G/中兴天机A31Pro5G/中兴远航20Pro/中兴远航40Pr0+/中兴远航41Pr0+<br>/中兴远航40Pr0+星空版/中兴V70/IQOO Neo 5/IQOO Neo5 SE/IQOO Z5/IQOO Z6/IQOOZ7<br>/IQOO Z7x/IQOO Z8/IQOO Z8x/OPPO A3i/OPPO A71/OPPO K13s/VIVO T1/VIVO X27 Pro<br>/VIVO Y100i/VIVO Y300 5G/VIVO Y77/VIVO Y78/VIVO Y78m 5G/VIVO Y78T/VIVO T2<br><br>"],
+      ["GX42", "华为：NOVA6SE/NOVA5i/NOVA7i"],
+      ["GX43", "华为：NOVA5Z/NOVA5iPRO/Nova 5Z/荣耀20/荣耀20Pro/荣耀20s/Mate30lite/Nova 5T"],
+      ["GX44", "华为：荣耀10i/麦芒8/荣耀20i/荣耀 10 Lite/畅享9S/荣耀10青春/荣耀10i/荣耀20Se"],
+      ["GX45", "/荣耀V20/红米K20/红米K20Pr0/华为Nova4/荣耀Magic2/三星Galaxy A60/三星Galaxy S21FE/三星Galaxy Sa23FE<br>/小米9T/小米9TPro/小米MX3/OPPO Reno【6.4】/VIVO NEX2前/VIVO S1 Pro/VIVO X27"],
+      ["GX46", "畅享7plas"],
+      ["GX47", "华为p30"],
+      ["GX48", "小米13/小米14"],
+      ["GX49", "/华为Nova11//Hi nova 11华为Nova12/华为Nova12活力板/华为Nova12Lite/华为Nova12s/华为NoVa13/华为Nova14<br>华为Nova14Lite/华为Nova15/荣耀90GT/荣耀畅玩60/荣耀畅玩60m/荣耀Play10C/荣耀X60GT/荣耀X6c/OPPO A5 2025"],
+      ["GX50", "- 华为：P40"],
+      ["GX51", "- 华为：P50E/P50"],
+      ["GX52", "- 华为：MATE20"],
+      ["GX53", "- 华为：MATE30"],
+      ["GX54", "VIVO X100s/畅享60Pro/畅享90/畅享90Plus/畅享80/红米Note12/红米Note12 5G/红米Note12RPro/畅享90 M Plus<br>/华为Nova9SE/麦芒20/荣耀50SE/远航30Pro/真我12/真我12X/真我13/真我V50/真我V50s/真我V60/真我V60s<br>/真我V70/真我155G/中兴S30SE全网通5G/中兴远航30Pro/Hi畅享80Plus/Hi Nova 9 SE/1Q0010/1Q0011<br>/1Q0011S/1Q009/IQ0O Neo 8/IQ0O Neo7/IQOO Neo7竞速版/IQOO Neo7 SE/I000 Neo8 Pro/IOOO Neo9<br>/iQOO Neo9 Pro/iQOO Neo9S Pro/iQOO Z10 Turbo/iQOO Z10 Turbo Pro/iQOO Z10x/iQOO Z9 5G<br>/iQOO Z9 Turbo+/iQOO Z9x 5G/NOVA10青春/nubia Neo 2 5G/OPPO A3活力版/OPPO A1 5G/OPPO A1s 5G<br>/OPPO A2 5G/A3x/OPPO A52025海外/OPPO A5活力版/OPPO A5x/OPPO A5x 5G/OPPO A6i 5G/OPPO A98 5G<br>/OPPO K11x/OPPO K13s 5G/OPPO K13x/VIVO S19/VIVO Y200 GT/VIVO S19/VIVO Y200 GT/VIVO Y200i<br>/VIVO Y200t/VIVO Y300i/VIVO Y300t/VIVO Y37 Pro/Wiko 5G"],
+      ["GX55", "一加13T/OPPO Find X8S/VIVO S30 Pro mini/VIVO X200 Pro mini"],
+      ["GX56", "小米17T/红米K90/红米K90Pro/红米Turbo5/荣耀Play11Plus/荣耀X80i"],
+      ["GX57", "VIVO S18/VIVO S18 Pro/一加8Pro/IQOO 10 Pro/IQOO 11 Pro/IQOO 12 Pro/IQOO 8 Pro/IQOO 9 Pro/<br>OPPO Find X2/VIVO Y78+/OPPO Find X2 Pro/VIVO S19 Pro/VIVO S17/VIVO S17 Pro/VIVO S17t/<br>VIVO X70 Pro+/VIVO X80/VIVO X80 Pro/VIVO Y200"],
+      ["GX58", "华为Mate40/华为Mate40E/华为P30Pro/小米CC9Pro/小米Civi/小米Ciwi1S/OPPO Find X/TDTechM40"],
+      ["GX59", "华为Mate40Pro+/华为Mate40RS/华为Mate40EPro/荣耀Magic3/荣耀Magic3至臻版/荣耀Magic3Pro<br>"],
+      ["GX60", "华为Mate50/华为Mate50E/华为Mate60/荣耀80GT/荣耀80Pro直面/红米K50电竞版/红米Note12Pro/红米Note12Pro极速版/红米Note12Pro+/—加Ace3V"],
+      ["GX61", "华为Mate60Pro+/华为Mate60RS/华为Nova8Pro/华为NoVa9Pro/荣耀50Pro/荣耀V40/荣耀V40Pro/Hi Nova 9 Pro"],
+      ["GX62", ""],
+      ["GX63", "华为Mate70Pro/华为Mate70PRO+/华为Mate70RS"],
+      ["GX64", "华为Nova11/华为Nova12/华为NoVa12活力版/<br>华为Nova14/华为Nova14活力版/华为Nova15/华为Nova16z/Hi Nova 11/OPPO A5 2025/OPPO A6 Plus"],
+      ["GX65", "红米Note13 5G/红米Note13Pro/红米Note13RPro/畅享20Plus/红米K40游戏增强版/红米K40S/红米K50/红米K50至尊版<br>/红米K50Pro/红米K50 Ultra/红米K60/红米K60至尊版/红米K60E/红米K60Pro/红米K70/红米K70Pro/红米K70E<br>/红米Note11(5G)/红米Note12 Turbo/红米Note145G/红米Turbo3/华为Nova10Se/华为Nova11SE<br>/荣耀300/荣耀GT/荣耀Play5活力版/荣耀X10/荣耀X20/荣耀X30i/一加Ace/优畅享20Plus/真我13Pro/真我9SE<br>/真我GT Neo2/真我GT Neo3/真我GT Neo5/真我GT Neo3T/真我GT Neo5SE/真我GT2/真我GT2大师探索版/Hi畅享60Pro<br>/Hi Nova 12 se/iQ007/IQOO Neo 5S/IQOO Neo 6/IQOO Neo6 SE/Nzone 50 Pro/OPPO A3 5G/OPPO A36 4G<br>/OPPO A6 5G/OPPO A76/OPPO K10 Pro/OPPO K11/OPPO K12/OPPO K12 Plus/OPPO K12s/OPPO K12x/OPPO K9S<br>/OPPO Reno 8 Pro/OPPO Reno 8 Pro+/VIVO S15/VIVO S16e/VIVO S18e/VIVO Y100t/VIVO Y77t"],
+      ["GX66", "畅玩70Plus/畅玩50Plus/畅玩60Plus/畅玩80Pro/红米12 5G/红米12/红米13 4G/红米13 5g/红米13X<br>/红米Note12R/红米Note13R/荣耀200 smart/荣耀Play10T/荣耀Play8T/荣耀Play9T/荣耀X7b"],
+      ["GX67", "/畅玩30Plus/畅玩10A/畅玩40PuS/畅玩60A/畅玩80/畅享30PIuS/畅享50/畅享60/畅享70/畅享70s/畅享70z<br>/红米12C/红米13C/红米13r/红米A3/华为Nova Y70/华为Nova Y72/麦芒11/荣耀 Play 5T//荣耀Play6T/耀Play7T<br>/Hi畅享60/Hi畅享60s/Hi畅享70m/Hi畅享70Plus/VIVO Y50/VIVO Y50 5G/VIVO Y50e/VIVO Y60/WIKO 10"],
+      ["GX68", ""],
+      ["GX80", "苹果：iphone 7G黑白/8G黑白"],
+      ["GX81", "苹果：iphone 7p黑白/8p黑白"],
+      ["GX82", "苹果：iphone X/XS/11Pro"],
+      ["GX83", "苹果：iPhone XSMax/iPhone 11proMax"],
+      ["GX84", "苹果：iPhone 11/iPhone XR"],
+      ["GX85", "苹果：iPhone 12 Pro Max"],
+      ["GX86", "苹果：iPhone 12/iPhone 12 Pro"],
+      ["GX87", "苹果：iPhone 13/iPhone 13 Pro/iPhone 14/iPhone 16e/iPhone 17e"],
+      ["GX88", "苹果：iPhone 14 Plus/iPhone 13 Pro Max"],
+      ["GX89", "苹果：iPhone 14 Pro"],
+      ["GX90", "苹果：iPhone 14 Pro Max"],
+      ["GX91", "苹果：iPhone 15/iPhone 16"],
+      ["GX92", "苹果：iPhone 15 Plus/iPhone 16 Plus"],
+      ["GX93", "苹果：iPhone 15 Pro"],
+      ["GX94", "苹果：iPhone15 Pro Max"],
+      ["GX95", "苹果：iPhone 17/iPhone16Pro"],
+      ["GX96", "苹果：iPhone16ProMax"],
+      ["GX97", "苹果：iPhone17Pro"],
+      ["GX98", "华为NoVa15Pro/华为Nova15 Ultra/华为NoVa16Pro/华为Nova16 Ultra/华为P90/华为Pura90/小米17 Pro Max/<br>畅享90 Pro Max/红米K90 Pro Max/小米17Utra/小米17"]
+    ];
 
-        // 过滤掉编号为空或明显无效的行 (保留GX01~GX98)
-        const data = rawRows.filter(row => {
-            const code = row[0];
-            return code && code.startsWith('GX') && code.length >= 3;
-        });
+    // 过滤空数据
+    const data = rawData.filter(row => row[0] && row[0].startsWith('GX'));
 
-        // 渲染表格
-        const tbody = document.getElementById('tableBody');
-        function renderTable(rows) {
-            tbody.innerHTML = '';
-            rows.forEach(row => {
-                const tr = document.createElement('tr');
-                tr.dataset.code = row[0];
-                // 编号
-                const td1 = document.createElement('td');
-                td1.className = 'code-cell';
-                td1.textContent = row[0];
-                // 名称
-                const td2 = document.createElement('td');
-                td2.textContent = row[1] || '';
-                // 主型号
-                const td3 = document.createElement('td');
-                td3.textContent = row[2] || '';
-                // 适用机型 (截断显示)
-                const td4 = document.createElement('td');
-                td4.className = 'model-cell';
-                td4.textContent = (row[3] || '').replace(/<br>/g, ' ').substring(0, 120) + (row[3] && row[3].length > 120 ? '…' : '');
-                tr.appendChild(td1);
-                tr.appendChild(td2);
-                tr.appendChild(td3);
-                tr.appendChild(td4);
-                tbody.appendChild(tr);
-            });
-        }
-        renderTable(data);
-
-        // 搜索逻辑 (大小写不敏感, 模糊匹配型号字段 + 适用机型)
-        const searchInput = document.getElementById('searchInput');
-        const searchBtn = document.getElementById('searchBtn');
-        const resultCard = document.getElementById('resultCard');
-        const resultCode = document.getElementById('resultCode');
-        const resultModel = document.getElementById('resultModel');
-
-        function performSearch() {
-            const keyword = searchInput.value.trim();
-            if (keyword === '') {
-                // 清除高亮
-                document.querySelectorAll('#tableBody tr').forEach(tr => tr.classList.remove('highlight-row'));
-                resultCard.style.display = 'none';
-                return;
-            }
-            const lower = keyword.toLowerCase();
-            let foundRow = null;
-            let foundCode = '';
-            let foundModel = '';
-            // 遍历数据 (优先匹配 主型号 和 适用机型)
-            for (let row of data) {
-                const code = row[0];
-                const mainModel = (row[2] || '').toLowerCase();
-                const models = (row[3] || '').toLowerCase();
-                // 同时检查 主型号 和 适用机型字段
-                if (mainModel.includes(lower) || models.includes(lower)) {
-                    foundRow = row;
-                    foundCode = row[0];
-                    foundModel = row[2] || row[3] || '';
-                    break;
-                }
-            }
-            // 高亮
-            document.querySelectorAll('#tableBody tr').forEach(tr => {
-                tr.classList.remove('highlight-row');
-                if (foundRow && tr.dataset.code === foundCode) {
-                    tr.classList.add('highlight-row');
+    // 构建索引: 提取所有关键词并映射到编号
+    function buildIndex(data) {
+        const idx = [];
+        data.forEach(([code, models]) => {
+            if (!models || models.trim() === '') return;
+            // 按 / 和 空格 分割关键词，并去除空白
+            const parts = models.split(/[\/\s]+/).filter(s => s.length > 1);
+            const cleanParts = parts.map(s => s.replace(/[，、：:；;，,。.、\-—\-—]/g, ' ').trim()).filter(s => s.length > 0);
+            // 去重
+            const unique = [...new Set(cleanParts)];
+            unique.forEach(key => {
+                if (key.length > 1) {
+                    idx.push({ key: key.toLowerCase(), code });
                 }
             });
+        });
+        return idx;
+    }
 
-            if (foundRow) {
-                resultCard.style.display = 'flex';
-                resultCode.textContent = foundCode;
-                const displayModel = foundRow[2] || foundRow[3] || '—';
-                resultModel.textContent = displayModel.length > 40 ? displayModel.substring(0,40)+'…' : displayModel;
-                resultCard.classList.remove('no-result');
-            } else {
-                resultCard.style.display = 'flex';
-                resultCode.textContent = '未找到';
-                resultModel.textContent = '请尝试其他关键词';
-                resultCard.classList.add('no-result');
+    const searchIndex = buildIndex(data);
+
+    // 模糊匹配函数
+    function fuzzySearch(query) {
+        if (!query || query.trim() === '') return null;
+        const q = query.toLowerCase().trim();
+        // 先尝试精确包含
+        for (let item of searchIndex) {
+            if (item.key.includes(q) || q.includes(item.key)) {
+                return item.code;
             }
         }
+        // 再尝试部分匹配 (按单词拆分)
+        const words = q.split(/[\s\/\-]+/).filter(w => w.length > 1);
+        for (let word of words) {
+            for (let item of searchIndex) {
+                if (item.key.includes(word) || word.includes(item.key)) {
+                    return item.code;
+                }
+            }
+        }
+        return null;
+    }
 
-        searchBtn.addEventListener('click', performSearch);
-        searchInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') performSearch();
+    // 获取完整行数据
+    function getRowByCode(code) {
+        return data.find(row => row[0] === code);
+    }
+
+    // ---------- UI 渲染 ----------
+    const tbody = document.getElementById('tableBody');
+    function renderTable(rows) {
+        tbody.innerHTML = '';
+        rows.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.dataset.code = row[0];
+            const td1 = document.createElement('td');
+            td1.className = 'code-cell';
+            td1.textContent = row[0];
+            // 主型号从原数据中取 (第3列, 但此处我们只展示编号+适用机型)
+            // 适用机型
+            const td2 = document.createElement('td');
+            td2.className = 'model-cell';
+            td2.textContent = (row[1] || '').replace(/<br>/g, ' ').substring(0, 120) + (row[1] && row[1].length > 120 ? '…' : '');
+            // 添加一个空列保持布局
+            const tdPlaceholder = document.createElement('td');
+            tdPlaceholder.textContent = '—';
+            tdPlaceholder.style.fontSize = '0.7rem';
+            tdPlaceholder.style.color = '#aaa';
+            tr.appendChild(td1);
+            tr.appendChild(tdPlaceholder);
+            tr.appendChild(td2);
+            tbody.appendChild(tr);
         });
+    }
+    renderTable(data);
 
-        // 生成二维码 (当前页面URL)
-        const qrContainer = document.getElementById('qrcode');
-        const currentUrl = 'https://wsgzgf.github.io/ghmox/';
-        // 清除占位
-        qrContainer.innerHTML = '';
-        new QRCode(qrContainer, {
-            text: currentUrl,
-            width: 140,
-            height: 140,
-            colorDark: '#0b1e33',
-            colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.H
-        });
+    // ---------- 搜索逻辑 ----------
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const resultCard = document.getElementById('resultCard');
+    const resultCode = document.getElementById('resultCode');
+    const resultModel = document.getElementById('resultModel');
+    const autoTip = document.getElementById('autoTip');
 
-        // 页面加载后默认展示卡片
-        setTimeout(() => {
+    function performSearch(query) {
+        if (!query || query.trim() === '') {
+            document.querySelectorAll('#tableBody tr').forEach(tr => tr.classList.remove('highlight-row'));
             resultCard.style.display = 'none';
-        }, 100);
-    })();
+            autoTip.style.display = 'none';
+            return;
+        }
+        const code = fuzzySearch(query);
+        // 高亮
+        document.querySelectorAll('#tableBody tr').forEach(tr => {
+            tr.classList.remove('highlight-row');
+            if (code && tr.dataset.code === code) {
+                tr.classList.add('highlight-row');
+            }
+        });
+
+        if (code) {
+            const row = getRowByCode(code);
+            resultCard.style.display = 'flex';
+            resultCard.classList.remove('no-result');
+            resultCode.textContent = code;
+            const displayModel = row ? (row[1] || '') : '';
+            resultModel.textContent = displayModel.length > 60 ? displayModel.substring(0,60)+'…' : displayModel;
+            autoTip.style.display = 'block';
+            autoTip.textContent = `✅ 匹配成功！编号 ${code} 对应机型：${displayModel.substring(0, 50)}...`;
+        } else {
+            resultCard.style.display = 'flex';
+            resultCard.classList.add('no-result');
+            resultCode.textContent = '未找到';
+            resultModel.textContent = '请尝试其他关键词';
+            autoTip.style.display = 'block';
+            autoTip.textContent = '❌ 未匹配到对应编号，请尝试手动输入更准确的关键词';
+        }
+    }
+
+    searchBtn.addEventListener('click', () => {
+        performSearch(searchInput.value);
+    });
+
+    searchInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') performSearch(searchInput.value);
+    });
+
+    // ---------- URL 参数自动识别 ----------
+    function handleUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        const model = params.get('model');
+        if (model && model.trim() !== '') {
+            searchInput.value = model;
+            autoTip.style.display = 'block';
+            autoTip.textContent = `🔍 检测到设备型号参数: ${model}，正在匹配...`;
+            performSearch(model);
+        }
+    }
+
+    // ---------- 二维码 (使用固定部署地址) ----------
+    const qrContainer = document.getElementById('qrcode');
+    // 部署后请替换为您的实际网址
+    const siteUrl = 'https://wsgzgf.github.io/ghmox/';
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+        text: siteUrl,
+        width: 140,
+        height: 140,
+        colorDark: '#0b1e33',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+    });
+
+    // 页面加载后执行
+    window.addEventListener('DOMContentLoaded', () => {
+        handleUrlParams();
+        // 默认隐藏结果卡片
+        resultCard.style.display = 'none';
+        autoTip.style.display = 'none';
+    });
+
+    // 暴露给外部
+    window.performSearch = performSearch;
+})();
 </script>
 </body>
 </html>
