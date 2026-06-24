@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>钢化膜编号 · 金士通钢化膜高清膜</title>
+    <title>钢化膜编号 · 小熊系列高清膜</title>
     <style>
         * {
             box-sizing: border-box;
@@ -267,7 +267,7 @@
     <div class="grid-wrapper">
         <table>
             <thead>
-                <tr><th>编号</th><th>主型号</th><th>适用机型 (关键词)</th></tr>
+                <tr><th>编号</th><th>适用机型 (关键词)</th></tr>
             </thead>
             <tbody id="tableBody"></tbody>
         </table>
@@ -286,7 +286,7 @@
 <script>
 (function() {
     // --------------------------------------------------------------
-    // 数据: 从Excel提取 (编号 + 适用机型)
+    // 完整数据 (编号 + 适用机型)
     // --------------------------------------------------------------
     const rawData = [
       ["GX01", "华为：畅玩 40/畅享 50 Z/优畅享 50E/NZONE S7/畅享 30E/麦芒 11 SE/荣耀 Play 5T/畅玩 30E/畅玩 20/荣耀 Play 6C/畅玩 30M/畅享 50z/畅玩 30a/畅享 20/红米 9A/红米 12/红米 10X Pro/红米 10X /红米 9/麦芒 A20/荣耀 play20/小米 10Lite/红米 Note 11R/酷派 cool30/酷比锋尚 40 - OPPO：OPPO A1 活力版/真我 10S 5G/A8/A11/A11X/A56/A55S/A55 /A35/ 真我 V3/A57/真我 V11s/真我 V11/A58/A58m/A1x/真我 V23/真我 V20/真我 V10/A56s/A57 5G/A97/真我 10s/真我 C35/真我 Q5i/真我 C20/真我 NARZO 30/真我 NARZO20A /A53S(5G)/A77(5G)/iQOO Z7i/M 10/NZONE S7(5G)/ONEPlus/REAlMEV1 - vivo：VIVO Y77E/Y73t/iQOO Z6 X/VIVO Y74S/VIVO Y72T/Y53T/Y55S/iQOO U5X/Y35/Y16/iQOO U5E/iQOO U5X/Z6X/Y10/Y33S/T1X/iQOO U5/Y32/Y55s/Y26/Y11/vivc Y12A/Y15A/Y20/Y20i/Y33/Y33E/Y33T/vivo Y35+/vivo Y35m/vivo Y35m+/Y54s/Y55/Y72/Y76"],
@@ -381,24 +381,29 @@
     // 过滤空数据
     const data = rawData.filter(row => row[0] && row[0].startsWith('GX'));
 
-    // ---------- 精准匹配算法 ----------
-    function extractKeywords(models) {
-        if (!models || models.trim() === '') return [];
-        // 按 / 和 空格 分割，并清理
-        const parts = models.split(/[\/\s]+/).filter(s => s.length > 1);
-        return parts.map(s => s.replace(/[，、：:；;，,。.、\-—\-—]/g, ' ').trim()).filter(s => s.length > 0);
+    // ---------- 改进的关键词提取：按所有常见分隔符切分 ----------
+    function extractAllKeywords(text) {
+        if (!text || text.trim() === '') return [];
+        // 统一替换所有分隔符为 /，再按 / 切分
+        const cleaned = text
+            .replace(/[，、：:；;，,。.、\-—\-—（）()\s]+/g, '/')
+            .replace(/\/\//g, '/')
+            .replace(/^\//, '')
+            .replace(/\/$/, '');
+        const parts = cleaned.split('/').filter(s => s.length > 1);
+        // 去重
+        return [...new Set(parts)];
     }
 
-    // 构建索引：每个关键词关联到编号和原始机型
+    // 构建索引
     const searchIndex = [];
     data.forEach(([code, models]) => {
         if (!models || models.trim() === '') return;
-        const keys = extractKeywords(models);
-        const uniqueKeys = [...new Set(keys)];
-        uniqueKeys.forEach(key => {
+        const keys = extractAllKeywords(models);
+        keys.forEach(key => {
             if (key.length > 1) {
                 searchIndex.push({ 
-                    key: key.toLowerCase(), 
+                    key: key.toLowerCase().trim(), 
                     code: code,
                     original: models
                 });
@@ -406,35 +411,36 @@
         });
     });
 
-    // 排序：优先匹配长度更长的关键词 (更精准)
+    // 按关键词长度降序排序（长关键词更精准）
     searchIndex.sort((a, b) => b.key.length - a.key.length);
 
+    // ---------- 搜索算法 ----------
     function smartSearch(query) {
         if (!query || query.trim() === '') return null;
         const q = query.toLowerCase().trim();
 
-        // 1. 精准匹配 (完整匹配)
+        // 1. 精准匹配 (完全一致)
         for (let item of searchIndex) {
             if (item.key === q) {
                 return { code: item.code, matchedKey: item.key };
             }
         }
 
-        // 2. 包含匹配 (按关键词长度降序)
+        // 2. 包含匹配 (关键词包含查询词)
         for (let item of searchIndex) {
             if (item.key.includes(q) && q.length >= 3) {
                 return { code: item.code, matchedKey: item.key };
             }
         }
 
-        // 3. 反向包含 (q 包含 key)
+        // 3. 反向包含 (查询词包含关键词)
         for (let item of searchIndex) {
             if (q.includes(item.key) && item.key.length >= 3) {
                 return { code: item.code, matchedKey: item.key };
             }
         }
 
-        // 4. 拆分匹配 (按空格拆分后再匹配)
+        // 4. 分词匹配 (按空格切分后逐个匹配)
         const words = q.split(/[\s\/\-]+/).filter(w => w.length > 2);
         for (let word of words) {
             for (let item of searchIndex) {
@@ -464,12 +470,7 @@
             const td2 = document.createElement('td');
             td2.className = 'model-cell';
             td2.textContent = (row[1] || '').replace(/<br>/g, ' ').substring(0, 120) + (row[1] && row[1].length > 120 ? '…' : '');
-            const tdPlaceholder = document.createElement('td');
-            tdPlaceholder.textContent = '—';
-            tdPlaceholder.style.fontSize = '0.7rem';
-            tdPlaceholder.style.color = '#aaa';
             tr.appendChild(td1);
-            tr.appendChild(tdPlaceholder);
             tr.appendChild(td2);
             tbody.appendChild(tr);
         });
